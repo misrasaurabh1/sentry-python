@@ -681,25 +681,20 @@ class MetricsAggregator:
         return None
 
 
-def _serialize_tags(
-    tags,  # type: Optional[MetricTags]
-):
+def _serialize_tags(tags):
     # type: (...) -> MetricTagsInternal
     if not tags:
         return ()
 
-    rv = []
-    for key, value in tags.items():
-        # If the value is a collection, we want to flatten it.
-        if isinstance(value, (list, tuple)):
-            for inner_value in value:
-                if inner_value is not None:
-                    rv.append((key, str(inner_value)))
-        elif value is not None:
-            rv.append((key, str(value)))
+    rv = [
+        (key, str(inner_value))
+        for key, value in tags.items()
+        if value is not None
+        for inner_value in (value if isinstance(value, (list, tuple)) else [value])
+        if inner_value is not None
+    ]
 
-    # It's very important to sort the tags in order to obtain the
-    # same bucket key.
+    # It's very important to sort the tags in order to obtain the same bucket key.
     return tuple(sorted(rv))
 
 
