@@ -399,19 +399,17 @@ class LocalAggregator:
     def to_json(self):
         # type: (...) -> Dict[str, Any]
         rv = {}  # type: Any
-        for (export_key, tags), (
-            v_min,
-            v_max,
-            v_count,
-            v_sum,
-        ) in self._measurements.items():
-            rv.setdefault(export_key, []).append(
+        for export_key, tags in self._measurements:
+            measurements = self._measurements[export_key, tags]
+            if export_key not in rv:
+                rv[export_key] = []
+            rv[export_key].append(
                 {
                     "tags": _tags_to_dict(tags),
-                    "min": v_min,
-                    "max": v_max,
-                    "count": v_count,
-                    "sum": v_sum,
+                    "min": measurements[0],
+                    "max": measurements[1],
+                    "count": measurements[2],
+                    "sum": measurements[3],
                 }
             )
         return rv
@@ -707,8 +705,8 @@ def _tags_to_dict(tags):
     # type: (MetricTagsInternal) -> Dict[str, Any]
     rv = {}  # type: Dict[str, Any]
     for tag_name, tag_value in tags:
-        old_value = rv.get(tag_name)
-        if old_value is not None:
+        if tag_name in rv:
+            old_value = rv[tag_name]
             if isinstance(old_value, list):
                 old_value.append(tag_value)
             else:
