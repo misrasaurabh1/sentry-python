@@ -32,24 +32,23 @@ def _get_headers(asgi_scope):
 
 
 def _get_url(asgi_scope, default_scheme, host):
-    # type: (Dict[str, Any], Literal["ws", "http"], Optional[Union[AnnotatedValue, str]]) -> str
     """
     Extract URL from the ASGI scope, without also including the querystring.
     """
     scheme = asgi_scope.get("scheme", default_scheme)
-
-    server = asgi_scope.get("server", None)
     path = asgi_scope.get("root_path", "") + asgi_scope.get("path", "")
 
     if host:
-        return "%s://%s%s" % (scheme, host, path)
+        return f"{scheme}://{host}{path}"
 
+    server = asgi_scope.get("server")
     if server is not None:
         host, port = server
-        default_port = {"http": 80, "https": 443, "ws": 80, "wss": 443}.get(scheme)
+        default_port = 80 if scheme in ["http", "ws"] else 443
         if port != default_port:
-            return "%s://%s:%s%s" % (scheme, host, port, path)
-        return "%s://%s%s" % (scheme, host, path)
+            return f"{scheme}://{host}:{port}{path}"
+        return f"{scheme}://{host}{path}"
+
     return path
 
 
