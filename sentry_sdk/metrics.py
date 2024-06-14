@@ -1,3 +1,5 @@
+import random
+import threading
 import io
 import os
 import random
@@ -637,7 +639,6 @@ class MetricsAggregator:
         return (start_of_day, meta_key) not in self._seen_locations
 
     def kill(self):
-        # type: (...) -> None
         if self._flusher is None:
             return
 
