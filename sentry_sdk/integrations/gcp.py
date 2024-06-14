@@ -1,3 +1,4 @@
+from datetime import timedelta
 import sys
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -204,7 +205,7 @@ def _make_request_event_processor(gcp_event, configured_timeout, initial_time):
 def _get_google_cloud_logs_url(final_time):
     # type: (datetime) -> str
     """
-    Generates a Google Cloud Logs console URL based on the environment variables
+    Generates a Google Cloud Logs console URL based on the environment variables.
     Arguments:
         final_time {datetime} -- Final time
     Returns:
@@ -213,18 +214,19 @@ def _get_google_cloud_logs_url(final_time):
     hour_ago = final_time - timedelta(hours=1)
     formatstring = "%Y-%m-%dT%H:%M:%SZ"
 
+    # Minimize calls to environ.get
+    project = environ.get("GCP_PROJECT")
+    function_name = environ.get("FUNCTION_NAME")
+    region = environ.get("FUNCTION_REGION")
+    timestamp_end = final_time.strftime(formatstring)
+    timestamp_start = hour_ago.strftime(formatstring)
+
     url = (
-        "https://console.cloud.google.com/logs/viewer?project={project}&resource=cloud_function"
-        "%2Ffunction_name%2F{function_name}%2Fregion%2F{region}&minLogLevel=0&expandAll=false"
-        "&timestamp={timestamp_end}&customFacets=&limitCustomFacetWidth=true"
-        "&dateRangeStart={timestamp_start}&dateRangeEnd={timestamp_end}"
-        "&interval=PT1H&scrollTimestamp={timestamp_end}"
-    ).format(
-        project=environ.get("GCP_PROJECT"),
-        function_name=environ.get("FUNCTION_NAME"),
-        region=environ.get("FUNCTION_REGION"),
-        timestamp_end=final_time.strftime(formatstring),
-        timestamp_start=hour_ago.strftime(formatstring),
+        f"https://console.cloud.google.com/logs/viewer?project={project}&resource=cloud_function"
+        f"%2Ffunction_name%2F{function_name}%2Fregion%2F{region}&minLogLevel=0&expandAll=false"
+        f"&timestamp={timestamp_end}&customFacets=&limitCustomFacetWidth=true"
+        f"&dateRangeStart={timestamp_start}&dateRangeEnd={timestamp_end}"
+        f"&interval=PT1H&scrollTimestamp={timestamp_end}"
     )
 
     return url
