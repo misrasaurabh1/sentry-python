@@ -43,43 +43,31 @@ SAFE_COMMAND_ATTRIBUTES = [
 
 def _strip_pii(command):
     # type: (Dict[str, Any]) -> Dict[str, Any]
+    update_db_command = "update" in command and "findAndModify" not in command
+
     for key in command:
-        is_safe_field = key in SAFE_COMMAND_ATTRIBUTES
-        if is_safe_field:
-            # Skip if safe key
+        if key in SAFE_COMMAND_ATTRIBUTES or (key == "update" and update_db_command):
             continue
 
-        update_db_command = key == "update" and "findAndModify" not in command
-        if update_db_command:
-            # Also skip "update" db command because it is save.
-            # There is also an "update" key in the "findAndModify" command, which is NOT safe!
-            continue
+        value = command[key]
 
-        # Special stripping for documents
-        is_document = key == "documents"
-        if is_document:
-            for doc in command[key]:
+        if key == "documents":
+            for doc in value:
                 for doc_key in doc:
                     doc[doc_key] = "%s"
-            continue
 
-        # Special stripping for dict style fields
-        is_dict_field = key in ["filter", "query", "update"]
-        if is_dict_field:
-            for item_key in command[key]:
-                command[key][item_key] = "%s"
-            continue
+        elif key in {"filter", "query", "update"}:
+            for item_key in value:
+                value[item_key] = "%s"
 
-        # For pipeline fields strip the `$match` dict
-        is_pipeline_field = key == "pipeline"
-        if is_pipeline_field:
-            for pipeline in command[key]:
-                for match_key in pipeline["$match"] if "$match" in pipeline else []:
-                    pipeline["$match"][match_key] = "%s"
-            continue
+        elif key == "pipeline":
+            for pipeline in value:
+                match = pipeline.get("$match", {})
+                for match_key in match:
+                    match[match_key] = "%s"
 
-        # Default stripping
-        command[key] = "%s"
+        else:
+            command[key] = "%s"
 
     return command
 
