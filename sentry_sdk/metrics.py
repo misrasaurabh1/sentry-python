@@ -1,3 +1,6 @@
+import random
+import threading
+import time
 import io
 import os
 import random
@@ -498,30 +501,25 @@ class MetricsAggregator:
 
     def _flushable_buckets(self):
         # type: (...) -> (Iterable[Tuple[int, Dict[BucketKey, Metric]]])
-        with self._lock:
-            force_flush = self._force_flush
-            cutoff = time.time() - self.ROLLUP_IN_SECONDS - self._flush_shift
-            flushable_buckets = ()  # type: Iterable[Tuple[int, Dict[BucketKey, Metric]]]
-            weight_to_remove = 0
+        cutoff = time.time() - self.ROLLUP_IN_SECONDS - self._flush_shift
+        flushable_buckets = []
+        weight_to_remove = 0
 
-            if force_flush:
-                flushable_buckets = self.buckets.items()
-                self.buckets = {}
+        with self._lock:
+            if self._force_flush:
+                flushable_buckets = list(self.buckets.items())
+                self.buckets.clear()
                 self._buckets_total_weight = 0
                 self._force_flush = False
             else:
-                flushable_buckets = []
-                for buckets_timestamp, buckets in self.buckets.items():
-                    # If the timestamp of the bucket is newer that the rollup we want to skip it.
-                    if buckets_timestamp <= cutoff:
-                        flushable_buckets.append((buckets_timestamp, buckets))
-
-                # We will clear the elements while holding the lock, in order to avoid requesting it downstream again.
-                for buckets_timestamp, buckets in flushable_buckets:
-                    for metric in buckets.values():
-                        weight_to_remove += metric.weight
-                    del self.buckets[buckets_timestamp]
-
+                keys_to_delete = [key for key in self.buckets if key <= cutoff]
+                for key in keys_to_delete:
+                    buckets = self.buckets[key]
+                    flushable_buckets.append((key, buckets))
+                    weight_to_remove += sum(
+                        metric.weight for metric in buckets.values()
+                    )
+                    del self.buckets[key]
                 self._buckets_total_weight -= weight_to_remove
 
         return flushable_buckets
