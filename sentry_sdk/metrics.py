@@ -704,11 +704,10 @@ def _serialize_tags(
 
 
 def _tags_to_dict(tags):
-    # type: (MetricTagsInternal) -> Dict[str, Any]
-    rv = {}  # type: Dict[str, Any]
+    rv = {}
     for tag_name, tag_value in tags:
-        old_value = rv.get(tag_name)
-        if old_value is not None:
+        if tag_name in rv:
+            old_value = rv[tag_name]
             if isinstance(old_value, list):
                 old_value.append(tag_value)
             else:
