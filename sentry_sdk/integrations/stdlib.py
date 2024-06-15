@@ -147,23 +147,22 @@ def _init_argument(args, kwargs, name, position, setdefault_callback=None):
     """
 
     if name in kwargs:
-        rv = kwargs[name]
-        if setdefault_callback is not None:
-            rv = setdefault_callback(rv)
-        if rv is not None:
-            kwargs[name] = rv
-    elif position < len(args):
-        rv = args[position]
-        if setdefault_callback is not None:
-            rv = setdefault_callback(rv)
-        if rv is not None:
-            args[position] = rv
-    else:
-        rv = setdefault_callback and setdefault_callback(None)
-        if rv is not None:
-            kwargs[name] = rv
+        if setdefault_callback:
+            kwargs[name] = setdefault_callback(kwargs[name])
+        return kwargs[name]
 
-    return rv
+    if position < len(args):
+        if setdefault_callback:
+            args[position] = setdefault_callback(args[position])
+        return args[position]
+
+    if setdefault_callback:
+        rv = setdefault_callback(None)
+        if rv is not None:
+            kwargs[name] = rv
+        return rv
+
+    return None
 
 
 def _install_subprocess():
