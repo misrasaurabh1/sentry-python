@@ -1,3 +1,6 @@
+import threading
+import threading
+
 """
 A fork of Python 3.6's stdlib queue (found in Pythons 'cpython/Lib/queue.py')
 with Lock swapped out for RLock to avoid a deadlock while garbage collecting.
@@ -178,15 +181,9 @@ class Queue:
             return not self._qsize()
 
     def full(self):
-        """Return True if the queue is full, False otherwise (not reliable!).
-
-        This method is likely to be removed at some point.  Use qsize() >= n
-        as a direct substitute, but be aware that either approach risks a race
-        condition where a queue can shrink before the result of full() or
-        qsize() can be used.
-        """
+        """Return True if the queue is full, False otherwise (not reliable!)."""
         with self.mutex:
-            return 0 < self.maxsize <= self._qsize()
+            return 0 < self.maxsize <= len(self.queue)
 
     def put(self, item, block=True, timeout=None):
         """Put an item into the queue.
@@ -285,3 +282,11 @@ class Queue:
     # Get an item from the queue
     def _get(self):
         return self.queue.popleft()
+
+    def _qsize(self):
+        return len(self.queue)
+
+    def full(self):
+        """Return True if the queue is full, False otherwise (not reliable!)."""
+        with self.mutex:
+            return 0 < self.maxsize <= len(self.queue)
