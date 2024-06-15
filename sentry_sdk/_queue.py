@@ -1,3 +1,6 @@
+import threading
+from collections import deque
+
 """
 A fork of Python 3.6's stdlib queue (found in Pythons 'cpython/Lib/queue.py')
 with Lock swapped out for RLock to avoid a deadlock while garbage collecting.
@@ -282,6 +285,51 @@ class Queue:
     def _put(self, item):
         self.queue.append(item)
 
-    # Get an item from the queue
     def _get(self):
         return self.queue.popleft()
+
+    def put(self, item, block=True, timeout=None):
+        with self.not_full:
+            if self.maxsize > 0:
+                while len(self.queue) >= self.maxsize:
+                    if not block:
+                        return False
+                    if timeout is None:
+                        self.not_full.wait()
+                    else:
+                        remaining = self.not_full.wait(timeout)
+                        if not remaining:
+                            return False
+            self.queue.append(item)
+            self.not_empty.notify()
+        return True
+
+    def get(self, block=True, timeout=None):
+        with self.not_empty:
+            while not self.queue:
+                if not block:
+                    return None
+                if timeout is None:
+                    self.not_empty.wait()
+                else:
+                    remaining = self.not_empty.wait(timeout)
+                    if not remaining:
+                        return None
+            item = self.queue.popleft()
+            self.not_full.notify()
+        return item
+
+    def task_done(self):
+        with self.all_tasks_done:
+            unfinished_tasks = self.unfinished_tasks - 1
+            if unfinished_tasks <= 0:
+                self.all_tasks_done.notify_all()
+            self.unfinished_tasks = unfinished_tasks
+
+    def join(self):
+        with self.all_tasks_done:
+            while self.unfinished_tasks > 0:
+                self.all_tasks_done.wait()
+
+    def _init(self, maxsize):
+        self.queue = deque()
