@@ -42,43 +42,31 @@ SAFE_COMMAND_ATTRIBUTES = [
 
 
 def _strip_pii(command):
-    # type: (Dict[str, Any]) -> Dict[str, Any]
-    for key in command:
-        is_safe_field = key in SAFE_COMMAND_ATTRIBUTES
-        if is_safe_field:
-            # Skip if safe key
+    for key in list(command):
+        if key in SAFE_COMMAND_ATTRIBUTES:
             continue
 
-        update_db_command = key == "update" and "findAndModify" not in command
-        if update_db_command:
-            # Also skip "update" db command because it is save.
-            # There is also an "update" key in the "findAndModify" command, which is NOT safe!
+        if key == "update" and "findAndModify" not in command:
             continue
 
-        # Special stripping for documents
-        is_document = key == "documents"
-        if is_document:
+        if key == "documents":
             for doc in command[key]:
                 for doc_key in doc:
                     doc[doc_key] = "%s"
             continue
 
-        # Special stripping for dict style fields
-        is_dict_field = key in ["filter", "query", "update"]
-        if is_dict_field:
+        if key in {"filter", "query", "update"}:
             for item_key in command[key]:
                 command[key][item_key] = "%s"
             continue
 
-        # For pipeline fields strip the `$match` dict
-        is_pipeline_field = key == "pipeline"
-        if is_pipeline_field:
+        if key == "pipeline":
             for pipeline in command[key]:
-                for match_key in pipeline["$match"] if "$match" in pipeline else []:
-                    pipeline["$match"][match_key] = "%s"
+                if "$match" in pipeline:
+                    for match_key in pipeline["$match"]:
+                        pipeline["$match"][match_key] = "%s"
             continue
 
-        # Default stripping
         command[key] = "%s"
 
     return command
