@@ -1,3 +1,6 @@
+import threading
+import threading
+
 """
 A fork of Python 3.6's stdlib queue (found in Pythons 'cpython/Lib/queue.py')
 with Lock swapped out for RLock to avoid a deadlock while garbage collecting.
@@ -174,8 +177,7 @@ class Queue:
         To create code that needs to wait for all queued tasks to be
         completed, the preferred technique is to use the join() method.
         """
-        with self.mutex:
-            return not self._qsize()
+        return not self.queue
 
     def full(self):
         """Return True if the queue is full, False otherwise (not reliable!).
@@ -285,3 +287,97 @@ class Queue:
     # Get an item from the queue
     def _get(self):
         return self.queue.popleft()
+
+    def put(self, item):
+        with self.not_empty:
+            while self.maxsize > 0 and len(self.queue) >= self.maxsize:
+                self.not_empty.wait()
+            self.queue.append(item)
+            self.empty.clear()
+            self.not_empty.notify()
+        if self.maxsize > 0 and len(self.queue) == self.maxsize:
+            self.full.set()
+
+    def get(self):
+        with self.not_empty:
+            while not self.queue:
+                self.not_empty.wait()
+            item = self.queue.pop(0)
+            self.not_empty.notify()
+        if not self.queue:
+            self.empty.set()
+        if self.maxsize > 0 and len(self.queue) < self.maxsize:
+            self.full.clear()
+        return item
+
+    def join(self):
+        with self.not_empty:
+            while self.unfinished_tasks:
+                self.not_empty.wait()
+
+    def task_done(self):
+        with self.not_empty:
+            if self.unfinished_tasks <= 0:
+                raise ValueError("task_done() called too many times")
+            self.unfinished_tasks -= 1
+            if not self.unfinished_tasks:
+                self.not_empty.notify_all()
+
+    def qsize(self):
+        with self.not_empty:
+            return len(self.queue)
+
+    def _qsize(self):
+        return len(self.queue)
+
+    def put(self, item):
+        with self.not_empty:
+            while self.maxsize > 0 and len(self.queue) >= self.maxsize:
+                self.not_empty.wait()
+            self.queue.append(item)
+            self.empty.clear()
+            self.not_empty.notify()
+        if self.maxsize > 0 and len(self.queue) == self.maxsize:
+            self.full.set()
+
+    def get(self):
+        with self.not_empty:
+            while not self.queue:
+                self.not_empty.wait()
+            item = self.queue.pop(0)
+            self.not_empty.notify()
+        if not self.queue:
+            self.empty.set()
+        if self.maxsize > 0 and len(self.queue) < self.maxsize:
+            self.full.clear()
+        return item
+
+    def empty(self):
+        """Return True if the queue is empty, False otherwise (not reliable!).
+
+        This method is likely to be removed at some point.  Use qsize() == 0
+        as a direct substitute, but be aware that either approach risks a race
+        condition where a queue can grow before the result of empty() or
+        qsize() can be used.
+
+        To create code that needs to wait for all queued tasks to be
+        completed, the preferred technique is to use the join() method.
+        """
+        return not self.queue
+
+    def join(self):
+        with self.not_empty:
+            while self.unfinished_tasks:
+                self.not_empty.wait()
+
+    def task_done(self):
+        with self.not_empty:
+            if self.unfinished_tasks <= 0:
+                raise ValueError("task_done() called too many times")
+            self.unfinished_tasks -= 1
+            if not self.unfinished_tasks:
+                self.not_empty.notify_all()
+
+    def qsize(self):
+        with self.not_empty:
+            return len(self.queue)
