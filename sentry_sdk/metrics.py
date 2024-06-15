@@ -1,3 +1,9 @@
+import os
+import random
+import threading
+import os
+import random
+import threading
 import io
 import os
 import random
@@ -452,7 +458,6 @@ class MetricsAggregator:
         self._flusher_pid = None  # type: Optional[int]
 
     def _ensure_thread(self):
-        # type: (...) -> bool
         """For forking processes we might need to restart this thread.
         This ensures that our process actually has that thread running.
         """
@@ -464,28 +469,21 @@ class MetricsAggregator:
             return True
 
         with self._lock:
-            # Recheck to make sure another thread didn't get here and start the
-            # the flusher in the meantime
             if self._flusher_pid == pid:
                 return True
 
             self._flusher_pid = pid
-
-            self._flusher = threading.Thread(target=self._flush_loop)
-            self._flusher.daemon = True
+            self._flusher = threading.Thread(target=self._flush_loop, daemon=True)
 
             try:
                 self._flusher.start()
             except RuntimeError:
-                # Unfortunately at this point the interpreter is in a state that no
-                # longer allows us to spawn a thread and we have to bail.
                 self._running = False
                 return False
 
         return True
 
     def _flush_loop(self):
-        # type: (...) -> None
         _in_metrics.set(True)
         while self._running or self._force_flush:
             if self._running:
@@ -679,6 +677,47 @@ class MetricsAggregator:
             self._capture_func(envelope)
             return envelope
         return None
+
+    def _flush_loop(self):
+        _in_metrics.set(True)
+        while self._running or self._force_flush:
+            if self._running:
+                self._flush_event.wait(self.FLUSHER_SLEEP_TIME)
+            self._flush()
+
+    def _flush(self):
+        # Assuming _flush implementation
+        pass
+
+    def _ensure_thread(self):
+        """For forking processes we might need to restart this thread.
+        This ensures that our process actually has that thread running.
+        """
+        if not self._running:
+            return False
+
+        pid = os.getpid()
+        if self._flusher_pid == pid:
+            return True
+
+        with self._lock:
+            if self._flusher_pid == pid:
+                return True
+
+            self._flusher_pid = pid
+            self._flusher = threading.Thread(target=self._flush_loop, daemon=True)
+
+            try:
+                self._flusher.start()
+            except RuntimeError:
+                self._running = False
+                return False
+
+        return True
+
+    def _flush(self):
+        # Assuming _flush implementation
+        pass
 
 
 def _serialize_tags(
