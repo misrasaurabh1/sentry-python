@@ -586,11 +586,9 @@ class _FunctionTransport(Transport):
         Transport.__init__(self)
         self._func = func
 
-    def capture_event(
-        self, event  # type: Event
-    ):
-        # type: (...) -> None
-        self._func(event)
+    def capture_event(self, event):  # type: (Event) -> None
+        func = self._func
+        func(event)
         return None
 
     def capture_envelope(self, envelope: Envelope) -> None:
