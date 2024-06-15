@@ -1,3 +1,6 @@
+import random
+import threading
+import time
 import io
 import os
 import random
@@ -497,32 +500,25 @@ class MetricsAggregator:
         self._emit(self._flushable_buckets(), self._flushable_locations())
 
     def _flushable_buckets(self):
-        # type: (...) -> (Iterable[Tuple[int, Dict[BucketKey, Metric]]])
+        # type: (...) -> Iterable[Tuple[int, Dict[BucketKey, Metric]]]
         with self._lock:
             force_flush = self._force_flush
             cutoff = time.time() - self.ROLLUP_IN_SECONDS - self._flush_shift
-            flushable_buckets = ()  # type: Iterable[Tuple[int, Dict[BucketKey, Metric]]]
-            weight_to_remove = 0
+            flushable_buckets = []
 
             if force_flush:
-                flushable_buckets = self.buckets.items()
-                self.buckets = {}
+                flushable_buckets = list(self.buckets.items())
+                self.buckets.clear()
                 self._buckets_total_weight = 0
                 self._force_flush = False
             else:
-                flushable_buckets = []
-                for buckets_timestamp, buckets in self.buckets.items():
-                    # If the timestamp of the bucket is newer that the rollup we want to skip it.
-                    if buckets_timestamp <= cutoff:
-                        flushable_buckets.append((buckets_timestamp, buckets))
+                remove_timestamps = [ts for ts in self.buckets if ts <= cutoff]
 
-                # We will clear the elements while holding the lock, in order to avoid requesting it downstream again.
-                for buckets_timestamp, buckets in flushable_buckets:
-                    for metric in buckets.values():
-                        weight_to_remove += metric.weight
-                    del self.buckets[buckets_timestamp]
-
-                self._buckets_total_weight -= weight_to_remove
+                for timestamp in remove_timestamps:
+                    for metric in self.buckets[timestamp].values():
+                        self._buckets_total_weight -= metric.weight
+                    flushable_buckets.append((timestamp, self.buckets[timestamp]))
+                    del self.buckets[timestamp]
 
         return flushable_buckets
 
